@@ -2,16 +2,51 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Shooter JS</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Mis Juegos</title>
+    <style>
+        body {
+            margin: 0;
+            background: #111;
+            color: white;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        h1 {
+            margin-bottom: 30px;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            margin: 15px 0;
+        }
+        a {
+            text-decoration: none;
+            font-size: 24px;
+            color: lime;
+            transition: 0.2s;
+        }
+        a:hover {
+            color: orange;
+        }
+        p {
+            color: gray;
+            font-size: 14px;
+            margin-top: 30px;
+        }
+    </style>
 </head>
 <body>
-    <h1 style="text-align:center; color:white; font-family:sans-serif;">Shooter JS</h1>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <p style="text-align:center; color:white; font-family:sans-serif;">
-        Usa <strong>WASD</strong> o <strong>flechas</strong> para moverte.<br>
-        Haz clic para disparar.
-    </p>
-    <script src="script.js"></script>
+    <h1>🎮 Mis Juegos</h1>
+    <ul>
+        <li><a href="shooter-js/index.html" target="_blank">Shooter JS (Jugar en navegador)</a></li>
+        <li><a href="shooter-java/ShooterJava.jar" target="_blank">Shooter Java (Descargar y ejecutar)</a></li>
+    </ul>
+    <p>Para el juego Java necesitas tener Java instalado y ejecutar el archivo .jar</p>
 </body>
 </html>
