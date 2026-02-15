@@ -2,51 +2,138 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Mis Juegos</title>
-    <style>
-        body {
-            margin: 0;
-            background: #111;
-            color: white;
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
-        h1 {
-            margin-bottom: 30px;
-        }
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-        li {
-            margin: 15px 0;
-        }
-        a {
-            text-decoration: none;
-            font-size: 24px;
-            color: lime;
-            transition: 0.2s;
-        }
-        a:hover {
-            color: orange;
-        }
-        p {
-            color: gray;
-            font-size: 14px;
-            margin-top: 30px;
-        }
-    </style>
+    <title>Shooter JS Beta</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>🎮 Mis Juegos</h1>
-    <ul>
-        <li><a href="shooter-js/index.html" target="_blank">Shooter JS (Jugar en navegador)</a></li>
-        <li><a href="shooter-java/ShooterJava.jar" target="_blank">Shooter Java (Descargar y ejecutar)</a></li>
-    </ul>
-    <p>Para el juego Java necesitas tener Java instalado y ejecutar el archivo .jar</p>
+    <h1 style="text-align:center; color:white;">Shooter JS Beta</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <p style="text-align:center; color:white;">
+        Movimiento: WASD / Flechas<br>
+        Disparo: Clic izquierdo
+    </p>
+    <p style="text-align:center; color:white;">
+        Puntaje: <span id="score">0</span>
+    </p>
+    <script src="script.js"></script>
 </body>
 </html>
+body {
+    margin: 0;
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: sans-serif;
+}
+
+canvas {
+    border: 2px solid white;
+    background: #222;
+}
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let score = 0;
+const scoreElement = document.getElementById("score");
+
+let player = { x: 400, y: 500, size: 30, color: "lime", speed: 5 };
+let bullets = [];
+let enemies = [];
+const enemySpawnInterval = 2000;
+
+let keys = {};
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+canvas.addEventListener("click", e => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
+    bullets.push({
+        x: player.x,
+        y: player.y,
+        dx: Math.cos(angle) * 10,
+        dy: Math.sin(angle) * 10,
+        size: 5,
+        color: "red"
+    });
+});
+
+function drawPlayer() {
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
+}
+
+function drawBullets() {
+    bullets.forEach((b, i) => {
+        b.x += b.dx;
+        b.y += b.dy;
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.x - b.size/2, b.y - b.size/2, b.size, b.size);
+        if(b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) bullets.splice(i,1);
+    });
+}
+
+function drawEnemies() {
+    enemies.forEach((enemy, i) => {
+        enemy.y += enemy.speed;
+        ctx.fillStyle = enemy.color;
+        ctx.fillRect(enemy.x - enemy.size/2, enemy.y - enemy.size/2, enemy.size, enemy.size);
+
+        if(rectIntersect(player, enemy)) {
+            alert("Game Over! Puntaje: " + score);
+            score = 0;
+            enemies = [];
+            scoreElement.textContent = score;
+        }
+
+        bullets.forEach((b, j) => {
+            if(rectIntersect(b, enemy)) {
+                bullets.splice(j,1);
+                enemies.splice(i,1);
+                score++;
+                scoreElement.textContent = score;
+            }
+        });
+    });
+}
+
+function rectIntersect(a,b){
+    return (a.x - a.size/2 < b.x + b.size/2 &&
+            a.x + a.size/2 > b.x - b.size/2 &&
+            a.y - a.size/2 < b.y + b.size/2 &&
+            a.y + a.size/2 > b.y - b.size/2);
+}
+
+function movePlayer() {
+    if(keys["w"] || keys["ArrowUp"]) player.y -= player.speed;
+    if(keys["s"] || keys["ArrowDown"]) player.y += player.speed;
+    if(keys["a"] || keys["ArrowLeft"]) player.x -= player.speed;
+    if(keys["d"] || keys["ArrowRight"]) player.x += player.speed;
+
+    if(player.x < player.size/2) player.x = player.size/2;
+    if(player.x > canvas.width - player.size/2) player.x = canvas.width - player.size/2;
+    if(player.y < player.size/2) player.y = player.size/2;
+    if(player.y > canvas.height - player.size/2) player.y = canvas.height - player.size/2;
+}
+
+function spawnEnemy() {
+    const size = 30;
+    const x = Math.random() * (canvas.width - size) + size/2;
+    const speed = 1 + Math.random() * 2;
+    enemies.push({x, y: -size, size, color:"orange", speed});
+}
+
+function gameLoop() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    movePlayer();
+    drawPlayer();
+    drawBullets();
+    drawEnemies();
+    requestAnimationFrame(gameLoop);
+}
+
+setInterval(spawnEnemy, enemySpawnInterval);
+gameLoop();
