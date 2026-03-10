@@ -1,139 +1,175 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Shooter JS Beta</title>
-    <link rel="stylesheet" href="style.css">
+<title>Juego de Disparos</title>
+<style>
+body{margin:0;background:black;overflow:hidden;}
+#player{
+width:40px;
+height:40px;
+background:lime;
+position:absolute;
+bottom:20px;
+left:50%;
+}
+.bullet{
+width:6px;
+height:12px;
+background:yellow;
+position:absolute;
+}
+.enemy{
+width:30px;
+height:30px;
+background:red;
+position:absolute;
+top:0;
+}
+</style>
 </head>
+
 <body>
-    <h1 style="text-align:center; color:white;">Shooter JS Beta</h1>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <p style="text-align:center; color:white;">
-        Movimiento: WASD / Flechas<br>
-        Disparo: Clic izquierdo
-    </p>
-    <p style="text-align:center; color:white;">
-        Puntaje: <span id="score">0</span>
-    </p>
-    <script src="script.js"></script>
+
+<div id="player"></div>
+
+<script>
+
+let player=document.getElementById("player")
+let px=window.innerWidth/2
+player.style.left=px+"px"
+
+let bullets=[]
+let enemies=[]
+
+document.addEventListener("keydown",e=>{
+if(e.key=="ArrowLeft") px-=20
+if(e.key=="ArrowRight") px+=20
+
+if(e.key==" "){
+let b=document.createElement("div")
+b.className="bullet"
+b.style.left=(px+17)+"px"
+b.style.top=(window.innerHeight-60)+"px"
+document.body.appendChild(b)
+bullets.push(b)
+}
+
+player.style.left=px+"px"
+})
+
+function spawnEnemy(){
+let e=document.createElement("div")
+e.className="enemy"
+e.style.left=Math.random()*window.innerWidth+"px"
+document.body.appendChild(e)
+enemies.push(e)
+}
+
+setInterval(spawnEnemy,1000)
+
+function gameLoop(){
+
+bullets.forEach((b,i)=>{
+b.style.top=(b.offsetTop-10)+"px"
+})
+
+enemies.forEach((e,i)=>{
+e.style.top=(e.offsetTop+3)+"px"
+})
+
+requestAnimationFrame(gameLoop)
+}
+
+gameLoop()
+
+</script>
+
+</body>
+</html><!DOCTYPE html>
+<html>
+<head>
+<title>Juego de Disparos</title>
+<style>
+body{margin:0;background:black;overflow:hidden;}
+#player{
+width:40px;
+height:40px;
+background:lime;
+position:absolute;
+bottom:20px;
+left:50%;
+}
+.bullet{
+width:6px;
+height:12px;
+background:yellow;
+position:absolute;
+}
+.enemy{
+width:30px;
+height:30px;
+background:red;
+position:absolute;
+top:0;
+}
+</style>
+</head>
+
+<body>
+
+<div id="player"></div>
+
+<script>
+
+let player=document.getElementById("player")
+let px=window.innerWidth/2
+player.style.left=px+"px"
+
+let bullets=[]
+let enemies=[]
+
+document.addEventListener("keydown",e=>{
+if(e.key=="ArrowLeft") px-=20
+if(e.key=="ArrowRight") px+=20
+
+if(e.key==" "){
+let b=document.createElement("div")
+b.className="bullet"
+b.style.left=(px+17)+"px"
+b.style.top=(window.innerHeight-60)+"px"
+document.body.appendChild(b)
+bullets.push(b)
+}
+
+player.style.left=px+"px"
+})
+
+function spawnEnemy(){
+let e=document.createElement("div")
+e.className="enemy"
+e.style.left=Math.random()*window.innerWidth+"px"
+document.body.appendChild(e)
+enemies.push(e)
+}
+
+setInterval(spawnEnemy,1000)
+
+function gameLoop(){
+
+bullets.forEach((b,i)=>{
+b.style.top=(b.offsetTop-10)+"px"
+})
+
+enemies.forEach((e,i)=>{
+e.style.top=(e.offsetTop+3)+"px"
+})
+
+requestAnimationFrame(gameLoop)
+}
+
+gameLoop()
+
+</script>
+
 </body>
 </html>
-body {
-    margin: 0;
-    background: #111;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    font-family: sans-serif;
-}
-
-canvas {
-    border: 2px solid white;
-    background: #222;
-}
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-
-let score = 0;
-const scoreElement = document.getElementById("score");
-
-let player = { x: 400, y: 500, size: 30, color: "lime", speed: 5 };
-let bullets = [];
-let enemies = [];
-const enemySpawnInterval = 2000;
-
-let keys = {};
-document.addEventListener("keydown", e => keys[e.key] = true);
-document.addEventListener("keyup", e => keys[e.key] = false);
-
-canvas.addEventListener("click", e => {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
-    bullets.push({
-        x: player.x,
-        y: player.y,
-        dx: Math.cos(angle) * 10,
-        dy: Math.sin(angle) * 10,
-        size: 5,
-        color: "red"
-    });
-});
-
-function drawPlayer() {
-    ctx.fillStyle = player.color;
-    ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
-}
-
-function drawBullets() {
-    bullets.forEach((b, i) => {
-        b.x += b.dx;
-        b.y += b.dy;
-        ctx.fillStyle = b.color;
-        ctx.fillRect(b.x - b.size/2, b.y - b.size/2, b.size, b.size);
-        if(b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) bullets.splice(i,1);
-    });
-}
-
-function drawEnemies() {
-    enemies.forEach((enemy, i) => {
-        enemy.y += enemy.speed;
-        ctx.fillStyle = enemy.color;
-        ctx.fillRect(enemy.x - enemy.size/2, enemy.y - enemy.size/2, enemy.size, enemy.size);
-
-        if(rectIntersect(player, enemy)) {
-            alert("Game Over! Puntaje: " + score);
-            score = 0;
-            enemies = [];
-            scoreElement.textContent = score;
-        }
-
-        bullets.forEach((b, j) => {
-            if(rectIntersect(b, enemy)) {
-                bullets.splice(j,1);
-                enemies.splice(i,1);
-                score++;
-                scoreElement.textContent = score;
-            }
-        });
-    });
-}
-
-function rectIntersect(a,b){
-    return (a.x - a.size/2 < b.x + b.size/2 &&
-            a.x + a.size/2 > b.x - b.size/2 &&
-            a.y - a.size/2 < b.y + b.size/2 &&
-            a.y + a.size/2 > b.y - b.size/2);
-}
-
-function movePlayer() {
-    if(keys["w"] || keys["ArrowUp"]) player.y -= player.speed;
-    if(keys["s"] || keys["ArrowDown"]) player.y += player.speed;
-    if(keys["a"] || keys["ArrowLeft"]) player.x -= player.speed;
-    if(keys["d"] || keys["ArrowRight"]) player.x += player.speed;
-
-    if(player.x < player.size/2) player.x = player.size/2;
-    if(player.x > canvas.width - player.size/2) player.x = canvas.width - player.size/2;
-    if(player.y < player.size/2) player.y = player.size/2;
-    if(player.y > canvas.height - player.size/2) player.y = canvas.height - player.size/2;
-}
-
-function spawnEnemy() {
-    const size = 30;
-    const x = Math.random() * (canvas.width - size) + size/2;
-    const speed = 1 + Math.random() * 2;
-    enemies.push({x, y: -size, size, color:"orange", speed});
-}
-
-function gameLoop() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    movePlayer();
-    drawPlayer();
-    drawBullets();
-    drawEnemies();
-    requestAnimationFrame(gameLoop);
-}
-
-setInterval(spawnEnemy, enemySpawnInterval);
-gameLoop();
