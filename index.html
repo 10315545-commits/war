@@ -1,175 +1,181 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<title>Juego de Disparos</title>
-<style>
-body{margin:0;background:black;overflow:hidden;}
-#player{
-width:40px;
-height:40px;
-background:lime;
-position:absolute;
-bottom:20px;
-left:50%;
-}
-.bullet{
-width:6px;
-height:12px;
-background:yellow;
-position:absolute;
-}
-.enemy{
-width:30px;
-height:30px;
-background:red;
-position:absolute;
-top:0;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>Juego de Guerra 3D - GitHub</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: red; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+        #ui { position: absolute; bottom: 20px; left: 20px; color: white; font-size: 24px; text-shadow: 2px 2px black; pointer-events: none; }
+        #instrucciones { position: absolute; top: 20px; left: 20px; color: #aaa; font-size: 14px; pointer-events: none; }
+    </style>
+    <!-- Importamos la librería Three.js desde CDN -->
+    <script src="https://cloudflare.com"></script>
 </head>
-
 <body>
 
-<div id="player"></div>
+    <div id="crosshair"></div>
+    <div id="ui">Bajas: <span id="score">0</span></div>
+    <div id="instrucciones">Mover: WASD | Apuntar: Movimiento Mouse | Disparar: Clic Izquierdo</div>
 
-<script>
+    <script>
+        // --- 1. CONFIGURACIÓN DEL MUNDO ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x223344); // Cielo oscuro de guerra
+        scene.fog = new THREE.FogExp2(0x223344, 0.015);
 
-let player=document.getElementById("player")
-let px=window.innerWidth/2
-player.style.left=px+"px"
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-let bullets=[]
-let enemies=[]
+        // Iluminación
+        const light = new THREE.AmbientLight(0x666666);
+        scene.add(light);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(20, 40, 20);
+        scene.add(dirLight);
 
-document.addEventListener("keydown",e=>{
-if(e.key=="ArrowLeft") px-=20
-if(e.key=="ArrowRight") px+=20
+        // Suelo (Campo de batalla)
+        const floorGeo = new THREE.PlaneGeometry(200, 200);
+        const floorMat = new THREE.MeshLambertMaterial({ color: 0x334433 }); // Césped/Tierra oscuro
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
 
-if(e.key==" "){
-let b=document.createElement("div")
-b.className="bullet"
-b.style.left=(px+17)+"px"
-b.style.top=(window.innerHeight-60)+"px"
-document.body.appendChild(b)
-bullets.push(b)
-}
+        // --- 2. CONTROLES DEL JUGADOR ---
+        let pos = { x: 0, z: 5 };
+        let rot = { x: 0, y: 0 };
+        let keys = {};
+        let score = 0;
 
-player.style.left=px+"px"
-})
+        // Bloqueo de cursor para control tipo FPS
+        window.addEventListener('click', () => {
+            document.body.requestPointerLock();
+        });
 
-function spawnEnemy(){
-let e=document.createElement("div")
-e.className="enemy"
-e.style.left=Math.random()*window.innerWidth+"px"
-document.body.appendChild(e)
-enemies.push(e)
-}
+        window.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === document.body) {
+                rot.y -= e.movementX * 0.0025;
+                rot.x -= e.movementY * 0.0025;
+                rot.x = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, rot.x)); // Límite mirar arriba/abajo
+            }
+        });
 
-setInterval(spawnEnemy,1000)
+        window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-function gameLoop(){
+        // --- 3. SISTEMA DE BALAS Y ENEMIGOS ---
+        const bullets = [];
+        const enemies = [];
 
-bullets.forEach((b,i)=>{
-b.style.top=(b.offsetTop-10)+"px"
-})
+        // Función para disparar
+        window.addEventListener('mousedown', (e) => {
+            if (document.pointerLockElement !== document.body || e.button !== 0) return;
 
-enemies.forEach((e,i)=>{
-e.style.top=(e.offsetTop+3)+"px"
-})
+            // Crear geometría de bala
+            const bulletGeo = new THREE.SphereGeometry(0.15, 8, 8);
+            const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 }); // Bala brillante
+            const bullet = new THREE.Mesh(bulletGeo, bulletMat);
+            
+            bullet.position.copy(camera.position);
 
-requestAnimationFrame(gameLoop)
-}
+            // Calcular dirección del disparo basándose en la vista de la cámara
+            const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            bullet.userData = { dir: dir, speed: 1.5, life: 100 };
 
-gameLoop()
+            bullets.push(bullet);
+            scene.add(bullet);
+        });
 
-</script>
+        // Generador de enemigos (Tanques / Robots hostiles)
+        function spawnEnemy() {
+            const enemyGeo = new THREE.BoxGeometry(2, 2, 2);
+            const enemyMat = new THREE.MeshLambertMaterial({ color: 0x990000 }); // Cubos rojos enemigos
+            const enemy = new THREE.Mesh(enemyGeo, enemyMat);
 
-</body>
-</html><!DOCTYPE html>
-<html>
-<head>
-<title>Juego de Disparos</title>
-<style>
-body{margin:0;background:black;overflow:hidden;}
-#player{
-width:40px;
-height:40px;
-background:lime;
-position:absolute;
-bottom:20px;
-left:50%;
-}
-.bullet{
-width:6px;
-height:12px;
-background:yellow;
-position:absolute;
-}
-.enemy{
-width:30px;
-height:30px;
-background:red;
-position:absolute;
-top:0;
-}
-</style>
-</head>
+            // Aparecen aleatoriamente alrededor del mapa
+            enemy.position.x = (Math.random() - 0.5) * 100;
+            enemy.position.z = (Math.random() - 0.5) * 100 - 30;
+            enemy.position.y = 1; // Sobre el suelo
 
-<body>
+            enemies.push(enemy);
+            scene.add(enemy);
+        }
 
-<div id="player"></div>
+        // Generar 15 enemigos iniciales
+        for(let i=0; i<15; i++) spawnEnemy();
 
-<script>
+        // --- 4. BUCLE DE JUEGO (ANIMACIÓN Y FÍSICAS) ---
+        const clock = new THREE.Clock();
 
-let player=document.getElementById("player")
-let px=window.innerWidth/2
-player.style.left=px+"px"
+        function animate() {
+            requestAnimationFrame(animate);
 
-let bullets=[]
-let enemies=[]
+            // Movimiento del jugador
+            const speed = 0.2;
+            const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot.y).normalize();
+            const side = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), rot.y).normalize();
 
-document.addEventListener("keydown",e=>{
-if(e.key=="ArrowLeft") px-=20
-if(e.key=="ArrowRight") px+=20
+            if (keys['KeyW']) { pos.x += forward.x * speed; pos.z += forward.z * speed; }
+            if (keys['KeyS']) { pos.x -= forward.x * speed; pos.z -= forward.z * speed; }
+            if (keys['KeyA']) { pos.x -= side.x * speed; pos.z -= side.z * speed; }
+            if (keys['KeyD']) { pos.x += side.x * speed; pos.z += side.z * speed; }
 
-if(e.key==" "){
-let b=document.createElement("div")
-b.className="bullet"
-b.style.left=(px+17)+"px"
-b.style.top=(window.innerHeight-60)+"px"
-document.body.appendChild(b)
-bullets.push(b)
-}
+            // Aplicar posiciones a la cámara
+            camera.position.set(pos.x, 1.6, pos.z); // 1.6 es la altura de los ojos
+            camera.rotation.set(0, 0, 0);
+            camera.rotation.y = rot.y;
+            camera.rotation.x = rot.x;
 
-player.style.left=px+"px"
-})
+            // Actualizar Balas
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.position.addScaledVector(b.userData.dir, b.userData.speed);
+                b.userData.life--;
 
-function spawnEnemy(){
-let e=document.createElement("div")
-e.className="enemy"
-e.style.left=Math.random()*window.innerWidth+"px"
-document.body.appendChild(e)
-enemies.push(e)
-}
+                // Detección de colisiones Bala vs Enemigo
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const e = enemies[j];
+                    if (b.position.distanceTo(e.position) < 1.5) {
+                        // Eliminar de la escena
+                        scene.remove(e);
+                        enemies.splice(j, 1);
+                        scene.remove(b);
+                        bullets.splice(i, 1);
+                        
+                        // Actualizar puntaje y reaparecer enemigo
+                        score++;
+                        document.getElementById('score').innerText = score;
+                        spawnEnemy();
+                        break;
+                    }
+                }
 
-setInterval(spawnEnemy,1000)
+                // Destruir bala vieja
+                if (b.userData.life <= 0 && bullets[i]) {
+                    scene.remove(b);
+                    bullets.splice(i, 1);
+                }
+            }
 
-function gameLoop(){
+            // Hacer que los enemigos caminen lentamente hacia ti
+            enemies.forEach(e => {
+                const dirToPlayer = new THREE.Vector3(pos.x, 1, pos.z).sub(e.position).normalize();
+                e.position.addScaledVector(dirToPlayer, 0.03);
+            });
 
-bullets.forEach((b,i)=>{
-b.style.top=(b.offsetTop-10)+"px"
-})
+            renderer.render(scene, camera);
+        }
 
-enemies.forEach((e,i)=>{
-e.style.top=(e.offsetTop+3)+"px"
-})
+        // Ajustar ventana dinámica
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
-requestAnimationFrame(gameLoop)
-}
-
-gameLoop()
-
-</script>
-
+        animate();
+    </script>
 </body>
 </html>
