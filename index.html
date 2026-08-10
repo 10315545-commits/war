@@ -216,7 +216,7 @@
     <div id="ui">
         <div>💀 Bajas: <span id="score">0</span></div>
         <div>🔫 Munición: <span id="ammo">30</span></div>
-        <div id="weaponInfo">Rifle Militar</div>
+        <div id="weaponInfo">M4A1 Carbine</div>
     </div>
     <div id="instrucciones">
         <b>CONTROLES:</b><br>
@@ -287,117 +287,353 @@
 
         // --- CONFIGURACIÓN DEL MUNDO ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e);
-        scene.fog = new THREE.FogExp2(0x1a1a2e, 0.012);
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.Fog(0x87ceeb, 400, 1000);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // Iluminación
-        const ambientLight = new THREE.AmbientLight(0x888888);
+        // Iluminación mejorada
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(40, 60, 40);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(100, 80, 100);
         dirLight.castShadow = true;
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
-        dirLight.shadow.camera.far = 200;
-        dirLight.shadow.camera.left = -100;
-        dirLight.shadow.camera.right = 100;
-        dirLight.shadow.camera.top = 100;
-        dirLight.shadow.camera.bottom = -100;
+        dirLight.shadow.camera.far = 300;
+        dirLight.shadow.camera.left = -200;
+        dirLight.shadow.camera.right = 200;
+        dirLight.shadow.camera.top = 200;
+        dirLight.shadow.camera.bottom = -200;
         scene.add(dirLight);
 
-        // Suelo (Campo de batalla)
-        const floorGeo = new THREE.PlaneGeometry(300, 300);
-        const floorMat = new THREE.MeshLambertMaterial({ color: 0x2d3d2d });
-        const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        scene.add(floor);
+        // --- GENERACIÓN PROCEDURAL DEL MAPA ---
+        function generarMapa() {
+            // Terreno con textura
+            const floorGeo = new THREE.PlaneGeometry(600, 600, 50, 50);
+            const floorMat = new THREE.MeshStandardMaterial({ 
+                color: 0x4a7c3c,
+                roughness: 0.8,
+                metalness: 0
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            floor.position.y = 0;
+            scene.add(floor);
 
-        // --- CREAR ARMA DEL JUGADOR (RIFLE 3D MUY ANIMADO) ---
+            // Añadir variación al terreno
+            const positionAttribute = floorGeo.getAttribute('position');
+            for (let i = 0; i < positionAttribute.count; i++) {
+                const y = Math.random() * 2;
+                positionAttribute.setY(i, positionAttribute.getY(i) + y * 0.1);
+            }
+            positionAttribute.needsUpdate = true;
+
+            // Montañas de fondo
+            const mountainGeo = new THREE.ConeGeometry(80, 120, 32);
+            const mountainMat = new THREE.MeshStandardMaterial({ 
+                color: 0x6b5d4f,
+                roughness: 0.9
+            });
+            const mountain1 = new THREE.Mesh(mountainGeo, mountainMat);
+            mountain1.position.set(-150, 0, -200);
+            mountain1.castShadow = true;
+            mountain1.receiveShadow = true;
+            scene.add(mountain1);
+
+            const mountain2 = new THREE.Mesh(mountainGeo.clone(), mountainMat);
+            mountain2.scale.set(0.8, 0.8, 0.8);
+            mountain2.position.set(180, 0, -180);
+            mountain2.castShadow = true;
+            mountain2.receiveShadow = true;
+            scene.add(mountain2);
+
+            // Edificios destructibles
+            const buildingPositions = [
+                { x: -100, z: -80, scale: 1.2 },
+                { x: 80, z: -120, scale: 0.9 },
+                { x: -60, z: 100, scale: 1.1 },
+                { x: 120, z: 60, scale: 0.85 },
+                { x: 0, z: 150, scale: 1.0 }
+            ];
+
+            buildingPositions.forEach(pos => {
+                crearEdificio(pos.x, pos.z, pos.scale);
+            });
+
+            // Árboles
+            for (let i = 0; i < 25; i++) {
+                const x = (Math.random() - 0.5) * 500;
+                const z = (Math.random() - 0.5) * 500;
+                crearArbol(x, z);
+            }
+
+            // Vallas y obstáculos
+            for (let i = 0; i < 15; i++) {
+                const x = (Math.random() - 0.5) * 500;
+                const z = (Math.random() - 0.5) * 500;
+                if (Math.random() > 0.5) {
+                    crearValla(x, z);
+                } else {
+                    crearBarricada(x, z);
+                }
+            }
+
+            // Luces ambientales en edificios
+            buildingPositions.forEach(pos => {
+                const light = new THREE.PointLight(0xffaa00, 0.5, 50);
+                light.position.set(pos.x, 8, pos.z);
+                scene.add(light);
+            });
+        }
+
+        function crearEdificio(x, z, scale) {
+            const grupo = new THREE.Group();
+            
+            // Paredes principales
+            const wallGeo = new THREE.BoxGeometry(30 * scale, 25 * scale, 30 * scale);
+            const wallMat = new THREE.MeshStandardMaterial({ 
+                color: 0xcccccc,
+                roughness: 0.6,
+                metalness: 0.1
+            });
+            const walls = new THREE.Mesh(wallGeo, wallMat);
+            walls.castShadow = true;
+            walls.receiveShadow = true;
+            grupo.add(walls);
+
+            // Techo
+            const roofGeo = new THREE.ConeGeometry(22 * scale, 10 * scale, 4);
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.7 });
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.position.y = 17 * scale;
+            roof.castShadow = true;
+            roof.receiveShadow = true;
+            grupo.add(roof);
+
+            // Ventanas
+            for (let i = 0; i < 4; i++) {
+                const windowGeo = new THREE.BoxGeometry(4 * scale, 4 * scale, 1 * scale);
+                const windowMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x1a1a2e,
+                    metalness: 0.8
+                });
+                const window = new THREE.Mesh(windowGeo, windowMat);
+                window.position.z = 16 * scale;
+                window.position.x = -8 * scale + i * 6 * scale;
+                window.position.y = 5 * scale;
+                grupo.add(window);
+            }
+
+            // Puerta
+            const doorGeo = new THREE.BoxGeometry(5 * scale, 8 * scale, 1 * scale);
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x4b2f1c, roughness: 0.8 });
+            const door = new THREE.Mesh(doorGeo, doorMat);
+            door.position.z = 16 * scale;
+            door.position.y = 2 * scale;
+            grupo.add(door);
+
+            grupo.position.set(x, 0, z);
+            scene.add(grupo);
+        }
+
+        function crearArbol(x, z) {
+            const grupo = new THREE.Group();
+            
+            // Tronco
+            const trunkGeo = new THREE.CylinderGeometry(2, 3, 15, 8);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.8 });
+            const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+            trunk.castShadow = true;
+            trunk.receiveShadow = true;
+            grupo.add(trunk);
+
+            // Follaje
+            const foliageGeo = new THREE.SphereGeometry(12, 8, 8);
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2d5016, roughness: 0.7 });
+            const foliage = new THREE.Mesh(foliageGeo, foliageMat);
+            foliage.position.y = 10;
+            foliage.castShadow = true;
+            foliage.receiveShadow = true;
+            grupo.add(foliage);
+
+            grupo.position.set(x, 0, z);
+            scene.add(grupo);
+        }
+
+        function crearValla(x, z) {
+            const grupo = new THREE.Group();
+            for (let i = 0; i < 3; i++) {
+                const postGeo = new THREE.BoxGeometry(1, 6, 1);
+                const postMat = new THREE.MeshStandardMaterial({ color: 0x654321, roughness: 0.8 });
+                const post = new THREE.Mesh(postGeo, postMat);
+                post.position.x = i * 4;
+                post.castShadow = true;
+                grupo.add(post);
+
+                const boardGeo = new THREE.BoxGeometry(3.8, 4, 0.5);
+                const board = new THREE.Mesh(boardGeo, postMat);
+                board.position.x = i * 4 - 2;
+                board.position.y = 2;
+                grupo.add(board);
+            }
+            grupo.position.set(x, 0, z);
+            scene.add(grupo);
+        }
+
+        function crearBarricada(x, z) {
+            const barricadaGeo = new THREE.BoxGeometry(15, 5, 2);
+            const barricadaMat = new THREE.MeshStandardMaterial({ color: 0x3d3d3d, roughness: 0.6 });
+            const barricada = new THREE.Mesh(barricadaGeo, barricadaMat);
+            barricada.position.set(x, 2.5, z);
+            barricada.castShadow = true;
+            barricada.receiveShadow = true;
+            scene.add(barricada);
+        }
+
+        generarMapa();
+
+        // --- CREAR ARMA PROFESIONAL (M4A1) ---
         function crearArmaJugador() {
             const armaGroup = new THREE.Group();
 
-            // Cañón principal
-            const barrelGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.0, 12);
-            const barrelMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.3 });
+            // Cañón (tubo principal grueso y realista)
+            const barrelGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 16);
+            const barrelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.95, roughness: 0.15 });
             const barrel = new THREE.Mesh(barrelGeo, barrelMat);
             barrel.rotation.x = Math.PI / 2;
-            barrel.position.set(0, 0, -0.5);
+            barrel.position.set(0.05, 0.08, -0.6);
             barrel.castShadow = true;
             armaGroup.add(barrel);
 
-            // Cuerpo del rifle
-            const bodyGeo = new THREE.BoxGeometry(0.18, 0.12, 0.7);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, metalness: 0.6, roughness: 0.4 });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.set(0, -0.05, -0.05);
-            body.castShadow = true;
-            armaGroup.add(body);
+            // Freno de boca (muzzle brake)
+            const brakesGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.15, 12);
+            const brakeMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, metalness: 0.9, roughness: 0.2 });
+            const brake = new THREE.Mesh(brakesGeo, brakeMat);
+            brake.rotation.x = Math.PI / 2;
+            brake.position.set(0.05, 0.08, -1.15);
+            armaGroup.add(brake);
 
-            // Culata
-            const stockGeo = new THREE.BoxGeometry(0.24, 0.18, 0.45);
-            const stockMat = new THREE.MeshStandardMaterial({ color: 0x4b2f1c, metalness: 0.1, roughness: 0.7 });
+            // Bloque de gas (gas block)
+            const gasBlockGeo = new THREE.BoxGeometry(0.15, 0.12, 0.18);
+            const gasBlockMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.7, roughness: 0.3 });
+            const gasBlock = new THREE.Mesh(gasBlockGeo, gasBlockMat);
+            gasBlock.position.set(0, 0.08, -0.2);
+            armaGroup.add(gasBlock);
+
+            // Receptor (upper receiver)
+            const receiverGeo = new THREE.BoxGeometry(0.22, 0.15, 0.8);
+            const receiverMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, metalness: 0.75, roughness: 0.25 });
+            const receiver = new THREE.Mesh(receiverGeo, receiverMat);
+            receiver.position.set(0, 0.02, -0.1);
+            armaGroup.add(receiver);
+
+            // Guardamanos (handguard) - modular
+            const handguardGeo = new THREE.BoxGeometry(0.12, 0.08, 0.75);
+            const handguardMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, metalness: 0.5, roughness: 0.4 });
+            const handguard = new THREE.Mesh(handguardGeo, handguardMat);
+            handguard.position.set(-0.08, -0.05, -0.2);
+            armaGroup.add(handguard);
+
+            // Culata (stock) ajustable
+            const stockGeo = new THREE.BoxGeometry(0.18, 0.15, 0.5);
+            const stockMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.2, roughness: 0.6 });
             const stock = new THREE.Mesh(stockGeo, stockMat);
-            stock.position.set(0.35, -0.02, 0.15);
-            stock.rotation.y = Math.PI / 12;
-            stock.castShadow = true;
+            stock.position.set(0, -0.05, 0.4);
             armaGroup.add(stock);
 
-            // Grip
-            const gripGeo = new THREE.BoxGeometry(0.06, 0.12, 0.12);
-            const grip = new THREE.Mesh(gripGeo, stockMat);
-            grip.position.set(0, -0.18, -0.1);
-            grip.rotation.x = -Math.PI / 10;
-            grip.castShadow = true;
-            armaGroup.add(grip);
+            // Almohadilla de culata
+            const cheekRestGeo = new THREE.BoxGeometry(0.22, 0.08, 0.08);
+            const cheekRest = new THREE.Mesh(cheekRestGeo, stockMat);
+            cheekRest.position.set(0, 0.06, 0.35);
+            armaGroup.add(cheekRest);
 
-            // Cargador
-            const magGeo = new THREE.BoxGeometry(0.09, 0.2, 0.06);
-            const magMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.5, roughness: 0.5 });
+            // Cargador (magazine) - curvo realista
+            const magGeo = new THREE.BoxGeometry(0.1, 0.35, 0.08);
+            const magMat = new THREE.MeshStandardMaterial({ color: 0x0f0f0f, metalness: 0.6, roughness: 0.4 });
             const mag = new THREE.Mesh(magGeo, magMat);
-            mag.position.set(-0.05, -0.12, -0.15);
-            mag.castShadow = true;
+            mag.position.set(-0.08, -0.2, -0.15);
+            mag.rotation.x = 0.05;
             armaGroup.add(mag);
 
-            // Mira telescópica (scope)
-            const scopeGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
-            const scopeMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.2 });
-            const scope = new THREE.Mesh(scopeGeo, scopeMat);
-            scope.rotation.x = Math.PI / 2;
-            scope.position.set(0, 0.08, -0.25);
-            scope.castShadow = true;
-            armaGroup.add(scope);
+            // Mira frontal (front sight)
+            const fsightGeo = new THREE.BoxGeometry(0.03, 0.08, 0.06);
+            const sightMat = new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.8 });
+            const fsight = new THREE.Mesh(fsightGeo, sightMat);
+            fsight.position.set(0, 0.12, -0.5);
+            armaGroup.add(fsight);
 
-            // Pequeños detalles (rail)
-            const railGeo = new THREE.BoxGeometry(0.02, 0.01, 0.5);
-            const railMat = new THREE.MeshStandardMaterial({ color: 0x0f0f0f, metalness: 0.85, roughness: 0.1 });
-            const rail = new THREE.Mesh(railGeo, railMat);
-            rail.position.set(0, 0.12, -0.15);
-            armaGroup.add(rail);
+            // Mira trasera (rear sight)
+            const rsight = new THREE.Mesh(fsightGeo, sightMat);
+            rsight.position.set(0, 0.12, 0.2);
+            armaGroup.add(rsight);
 
-            // Muzzle (destello) - un pequeño sprite/luz
-            const flashGeo = new THREE.SphereGeometry(0.06, 8, 8);
-            const flashMat = new THREE.MeshBasicMaterial({ color: 0xffcc66 });
+            // Acog Scope (mira táctica)
+            const scopeBodyGeo = new THREE.BoxGeometry(0.05, 0.08, 0.3);
+            const scopeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.85, roughness: 0.15 });
+            const scopeBody = new THREE.Mesh(scopeBodyGeo, scopeMat);
+            scopeBody.position.set(0.02, 0.15, -0.15);
+            armaGroup.add(scopeBody);
+
+            // Lente de scope
+            const scopeLensGeo = new THREE.SphereGeometry(0.04, 12, 12);
+            const lensMat = new THREE.MeshStandardMaterial({ color: 0x4a90e2, metalness: 0.9, roughness: 0.2, emissive: 0x1a3a5a });
+            const scopeLens = new THREE.Mesh(scopeLensGeo, lensMat);
+            scopeLens.position.set(0.02, 0.15, -0.35);
+            armaGroup.add(scopeLens);
+
+            // Sistema de raíles (picatinny rail)
+            for (let i = 0; i < 5; i++) {
+                const railGeo = new THREE.BoxGeometry(0.22, 0.01, 0.08);
+                const railMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, metalness: 0.8, roughness: 0.2 });
+                const rail = new THREE.Mesh(railGeo, railMat);
+                rail.position.set(0, 0.18, -0.3 + i * 0.15);
+                armaGroup.add(rail);
+            }
+
+            // Grip (empuñadura pistola)
+            const gripGeo = new THREE.BoxGeometry(0.08, 0.18, 0.1);
+            const gripMat = new THREE.MeshStandardMaterial({ color: 0x2d2d2d, roughness: 0.8 });
+            const grip = new THREE.Mesh(gripGeo, gripMat);
+            grip.position.set(-0.02, -0.15, 0);
+            grip.rotation.z = -0.3;
+            armaGroup.add(grip);
+
+            // Trigger guard
+            const triggerGeo = new THREE.TorusGeometry(0.04, 0.015, 8, 8);
+            const trigger = new THREE.Mesh(triggerGeo, sightMat);
+            trigger.position.set(-0.02, -0.08, -0.05);
+            trigger.rotation.x = Math.PI / 2;
+            armaGroup.add(trigger);
+
+            // Charging handle (manivela)
+            const chargeGeo = new THREE.BoxGeometry(0.04, 0.04, 0.12);
+            const charge = new THREE.Mesh(chargeGeo, receiverMat);
+            charge.position.set(0.15, 0.08, -0.2);
+            armaGroup.add(charge);
+
+            // Muzzle flash effect
+            const flashGeo = new THREE.SphereGeometry(0.08, 8, 8);
+            const flashMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
             const muzzle = new THREE.Mesh(flashGeo, flashMat);
-            muzzle.position.set(0, 0, -1.05);
+            muzzle.position.set(0.05, 0.08, -1.25);
             muzzle.visible = false;
             armaGroup.add(muzzle);
 
-            const muzzleLight = new THREE.PointLight(0xffcc88, 1.8, 6);
-            muzzleLight.position.set(0, 0, -1.05);
+            const muzzleLight = new THREE.PointLight(0xffaa44, 2, 8);
+            muzzleLight.position.set(0.05, 0.08, -1.25);
             muzzleLight.visible = false;
             armaGroup.add(muzzleLight);
 
-            armaGroup.userData = { muzzle: muzzle, muzzleLight: muzzleLight, parts: { barrel, body, stock, grip, mag, scope, rail } };
-
-            armaGroup.position.set(0.3, -0.2, -0.8);
-            armaGroup.scale.set(0.9, 0.9, 0.9);
+            armaGroup.userData = { muzzle: muzzle, muzzleLight: muzzleLight };
+            armaGroup.position.set(0.35, -0.15, -0.85);
+            armaGroup.scale.set(0.85, 0.85, 0.85);
 
             return armaGroup;
         }
@@ -413,23 +649,20 @@
             score: 0
         };
 
-        // Animación/efectos del arma
-        let weaponRecoil = 0; // retroceso
-        let weaponSwayX = 0; // sway horizontal
-        let weaponSwayY = 0; // sway vertical
+        let weaponRecoil = 0;
+        let weaponSwayX = 0;
+        let weaponSwayY = 0;
         let swayTimer = 0;
 
         const armaJugador = crearArmaJugador();
         camera.add(armaJugador);
 
-        // Casquillos expulsados
         const shells = [];
 
         let keys = {};
         let isJumping = false;
         let velocity = { y: 0 };
 
-        // Bloqueo de cursor
         window.addEventListener('click', () => {
             if (document.pointerLockElement !== document.body) {
                 document.body.requestPointerLock();
@@ -442,7 +675,6 @@
                 player.rot.x -= e.movementY * 0.005;
                 player.rot.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2.5, player.rot.x));
 
-                // Sway input (usar movimiento del mouse para sway)
                 weaponSwayX = THREE.MathUtils.clamp(weaponSwayX - e.movementX * 0.0006, -0.06, 0.06);
                 weaponSwayY = THREE.MathUtils.clamp(weaponSwayY - e.movementY * 0.0006, -0.04, 0.04);
             }
@@ -462,8 +694,8 @@
             if (document.pointerLockElement !== document.body || e.button !== 0) return;
             if (player.ammo <= 0) return;
 
-            const bulletGeo = new THREE.SphereGeometry(0.04, 6, 6);
-            const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+            const bulletGeo = new THREE.SphereGeometry(0.05, 8, 8);
+            const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffdd00 });
             const bullet = new THREE.Mesh(bulletGeo, bulletMat);
 
             const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
@@ -476,32 +708,28 @@
             player.ammo--;
             document.getElementById('ammo').innerText = player.ammo;
 
-            // Retroceso y destello
-            weaponRecoil = Math.min(weaponRecoil + 0.26, 0.5);
+            weaponRecoil = Math.min(weaponRecoil + 0.28, 0.55);
             if (armaJugador && armaJugador.userData && armaJugador.userData.muzzle) {
                 armaJugador.userData.muzzle.visible = true;
                 armaJugador.userData.muzzleLight.visible = true;
                 setTimeout(() => {
                     armaJugador.userData.muzzle.visible = false;
                     armaJugador.userData.muzzleLight.visible = false;
-                }, 70);
+                }, 80);
             }
 
-            // Cámara shake (temporal)
             camera.userData = camera.userData || {};
-            camera.userData.shake = 0.12;
+            camera.userData.shake = 0.15;
 
-            // Expulsar casquillo
-            const shellGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.05, 6);
-            const shellMat = new THREE.MeshStandardMaterial({ color: 0xd0b27f, metalness: 0.6, roughness: 0.3 });
+            const shellGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.06, 8);
+            const shellMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.7, roughness: 0.2 });
             const shell = new THREE.Mesh(shellGeo, shellMat);
-            // spawn position relative to weapon
-            const ejectionPos = new THREE.Vector3(0.12, -0.08, -0.05).applyMatrix4(armaJugador.matrixWorld);
+            const ejectionPos = new THREE.Vector3(0.12, -0.06, 0.1).applyMatrix4(armaJugador.matrixWorld);
             shell.position.copy(ejectionPos);
             shell.rotation.set(Math.random()*2, Math.random()*2, Math.random()*2);
             shell.userData = {
-                vel: new THREE.Vector3(0.6 + Math.random()*0.4, 0.8 + Math.random()*0.6, -0.2 + Math.random()*0.4).applyQuaternion(camera.quaternion),
-                life: 180
+                vel: new THREE.Vector3(0.7 + Math.random()*0.5, 0.9 + Math.random()*0.7, -0.3 + Math.random()*0.5).applyQuaternion(camera.quaternion),
+                life: 200
             };
             shell.castShadow = true;
             scene.add(shell);
@@ -513,39 +741,35 @@
             document.getElementById('ammo').innerText = player.ammo;
         }
 
-        // --- CREAR SOLDADO ENEMIGO (MILITAR) ---
+        // --- CREAR SOLDADO ENEMIGO ---
         function crearPersonaje(posX, posZ) {
             const grupo = new THREE.Group();
 
-            // Uniforme: Cuerpo (chaleco táctico)
             const bodyGeo = new THREE.CapsuleGeometry(0.6, 1.8, 4, 8);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2d5016 }); // Verde militar
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2d5016 });
             const body = new THREE.Mesh(bodyGeo, bodyMat);
             body.castShadow = true;
             body.receiveShadow = true;
             grupo.add(body);
 
-            // Casco militar
             const helmetGeo = new THREE.SphereGeometry(0.55, 8, 8);
-            const helmetMat = new THREE.MeshStandardMaterial({ color: 0x1a3a0a }); // Verde oscuro
+            const helmetMat = new THREE.MeshStandardMaterial({ color: 0x1a3a0a });
             const helmet = new THREE.Mesh(helmetGeo, helmetMat);
             helmet.position.y = 1.4;
             helmet.castShadow = true;
             helmet.receiveShadow = true;
             grupo.add(helmet);
 
-            // Cara
             const faceGeo = new THREE.SphereGeometry(0.35, 8, 8);
-            const faceMat = new THREE.MeshStandardMaterial({ color: 0xd4a574 }); // Tono piel
+            const faceMat = new THREE.MeshStandardMaterial({ color: 0xd4a574 });
             const face = new THREE.Mesh(faceGeo, faceMat);
             face.position.set(0, 1.3, 0.3);
             face.castShadow = true;
             face.receiveShadow = true;
             grupo.add(face);
 
-            // Brazos (con uniforme)
             const armGeo = new THREE.CapsuleGeometry(0.3, 1.2, 4, 6);
-            const armMat = new THREE.MeshStandardMaterial({ color: 0x2d5016 }); // Verde militar
+            const armMat = new THREE.MeshStandardMaterial({ color: 0x2d5016 });
 
             const armLeft = new THREE.Mesh(armGeo, armMat);
             armLeft.position.set(-0.8, 0.5, 0);
@@ -557,9 +781,8 @@
             armRight.castShadow = true;
             grupo.add(armRight);
 
-            // Piernas (pantalón militar)
             const legGeo = new THREE.CapsuleGeometry(0.25, 1.2, 4, 6);
-            const legMat = new THREE.MeshStandardMaterial({ color: 0x1a3a0a }); // Verde oscuro
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x1a3a0a });
 
             const legLeft = new THREE.Mesh(legGeo, legMat);
             legLeft.position.set(-0.4, -1, 0);
@@ -571,12 +794,11 @@
             legRight.castShadow = true;
             grupo.add(legRight);
 
-            // Rifle del enemigo
-            const rifleGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.7, 8);
-            const rifleMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6 });
+            const rifleGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.8, 12);
+            const rifleMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8 });
             const rifle = new THREE.Mesh(rifleGeo, rifleMat);
-            rifle.position.set(0.6, 0.3, -0.3);
-            rifle.rotation.z = Math.PI / 4;
+            rifle.position.set(0.7, 0.4, -0.3);
+            rifle.rotation.z = Math.PI / 3.5;
             rifle.castShadow = true;
             grupo.add(rifle);
 
@@ -635,7 +857,6 @@
                 enemigosEliminados = 0;
                 document.getElementById('misionCompleta').style.display = 'none';
                 
-                // Spawn de más enemigos
                 const enemigosActuales = Math.min(15 + misionActual * 5, 50);
                 while (enemies.length < enemigosActuales) {
                     spawnEnemy();
@@ -655,15 +876,14 @@
 
         function spawnEnemy() {
             const personaje = crearPersonaje(
-                (Math.random() - 0.5) * 150,
-                (Math.random() - 0.5) * 150 - 40
+                (Math.random() - 0.5) * 300,
+                (Math.random() - 0.5) * 300 - 60
             );
 
             enemies.push(personaje);
             scene.add(personaje.mesh);
         }
 
-        // Spawn inicial
         for (let i = 0; i < 15; i++) spawnEnemy();
         actualizarMision();
 
@@ -692,7 +912,6 @@
                 document.getElementById('score').innerText = player.score;
                 actualizarMision();
 
-                // Spawn nuevo enemigo
                 spawnEnemy();
             }
         }
@@ -715,10 +934,8 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Actualizar contador de enemigos en admin
             document.getElementById('enemyCount').innerText = enemies.length;
 
-            // Movimiento del jugador
             const speed = admin.playerSpeed;
             const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rot.y).normalize();
             const side = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rot.y).normalize();
@@ -730,7 +947,6 @@
             if (keys['KeyA']) { player.pos.x -= side.x * speed; player.pos.z -= side.z * speed; }
             if (keys['KeyD']) { player.pos.x += side.x * speed; player.pos.z += side.z * speed; }
 
-            // Salto
             if (keys['Space'] && !isJumping) {
                 velocity.y = 0.15;
                 isJumping = true;
@@ -748,13 +964,11 @@
             camera.rotation.y = player.rot.y;
             camera.rotation.x = player.rot.x;
 
-            // Actualizar balas
             for (let i = bullets.length - 1; i >= 0; i--) {
                 const b = bullets[i];
                 b.position.addScaledVector(b.userData.dir, b.userData.speed);
                 b.userData.life--;
 
-                // Colisión con enemigos
                 for (let j = enemies.length - 1; j >= 0; j--) {
                     const e = enemies[j];
                     if (b.position.distanceTo(e.mesh.position) < 2) {
@@ -773,10 +987,9 @@
                 }
             }
 
-            // Actualizar casquillos expulsados
             for (let i = shells.length - 1; i >= 0; i--) {
                 const s = shells[i];
-                s.userData.vel.y -= 0.02; // gravedad
+                s.userData.vel.y -= 0.02;
                 s.position.addScaledVector(s.userData.vel, 1);
                 s.rotation.x += 0.2;
                 s.rotation.z += 0.15;
@@ -787,66 +1000,48 @@
                 }
             }
 
-            // IA de enemigos - caminar hacia el jugador
             enemies.forEach((e, idx) => {
                 const dirToPlayer = new THREE.Vector3(player.pos.x, 1, player.pos.z).sub(e.mesh.position).normalize();
                 e.mesh.position.addScaledVector(dirToPlayer, 0.04);
 
-                // Animación de caminar
                 e.walkCycle += 0.05;
                 e.armLeft.rotation.z = Math.sin(e.walkCycle) * 0.5;
                 e.armRight.rotation.z = -Math.sin(e.walkCycle) * 0.5;
                 e.legLeft.rotation.x = Math.sin(e.walkCycle) * 0.3;
                 e.legRight.rotation.x = -Math.sin(e.walkCycle) * 0.3;
 
-                // Rotación del rifle
                 e.rifle.rotation.x = Math.sin(e.walkCycle) * 0.2;
 
-                // Enemigo cerca: causar daño
                 const distancia = e.mesh.position.distanceTo(camera.position);
                 if (distancia < 2) {
                     dañarJugador(0.5);
                 }
             });
 
-            // --- Weapon idle sway + movement bob + smoothing ---
             swayTimer += 0.04;
             const idleSwayX = Math.sin(swayTimer * 0.9) * 0.008;
             const idleSwayY = Math.sin(swayTimer * 1.3) * 0.005;
             const moveBob = isMoving ? Math.sin(swayTimer * 6) * 0.02 : 0;
 
-            // decay mouse-induced sway slowly
             weaponSwayX *= 0.92;
             weaponSwayY *= 0.92;
 
-            // target positions
-            const targetX = 0.3 + idleSwayX + weaponSwayX;
-            const targetY = -0.2 + idleSwayY + weaponSwayY + moveBob;
-            // smooth position
+            const targetX = 0.35 + idleSwayX + weaponSwayX;
+            const targetY = -0.15 + idleSwayY + weaponSwayY + moveBob;
             armaJugador.position.x += (targetX - armaJugador.position.x) * 0.18;
             armaJugador.position.y += (targetY - armaJugador.position.y) * 0.18;
 
-            // Aplicar retroceso del arma (suavizado)
             if (weaponRecoil > 0.001) {
-                armaJugador.position.z += (-0.8 - armaJugador.position.z) * 0.45; // approach base z
-                armaJugador.position.z = -0.8 - weaponRecoil;
-                armaJugador.rotation.x = -weaponRecoil * 0.9;
+                armaJugador.position.z += (-0.85 - armaJugador.position.z) * 0.45;
+                armaJugador.position.z = -0.85 - weaponRecoil;
+                armaJugador.rotation.x = -weaponRecoil * 0.95;
                 weaponRecoil *= 0.76;
             } else {
-                armaJugador.position.z += (-0.8 - armaJugador.position.z) * 0.18;
+                armaJugador.position.z += (-0.85 - armaJugador.position.z) * 0.18;
                 armaJugador.rotation.x += (0 - armaJugador.rotation.x) * 0.12;
                 weaponRecoil = 0;
             }
 
-            // sub-animaciones de partes (recoil jiggle)
-            if (armaJugador.userData && armaJugador.userData.parts) {
-                const p = armaJugador.userData.parts;
-                // ligero bounce en el scope y rail
-                p.scope.rotation.z = Math.sin(swayTimer*8) * 0.005 * weaponRecoil * 4;
-                p.rail.position.y = 0.12 + Math.sin(swayTimer*6) * 0.002;
-            }
-
-            // Camera shake
             if (camera.userData && camera.userData.shake) {
                 camera.userData.shake *= 0.82;
                 const s = camera.userData.shake;
