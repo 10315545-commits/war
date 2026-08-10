@@ -40,8 +40,8 @@
         
         #instrucciones { 
             position: absolute; 
-            top: 20px; 
-            left: 20px; 
+            bottom: 20px; 
+            right: 20px; 
             color: #aaa; 
             font-size: 13px; 
             pointer-events: none;
@@ -123,10 +123,91 @@
         #misionCompleta button:hover {
             background: #ffff00;
         }
+
+        #adminPanel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff00;
+            border: 2px solid #00ff00;
+            border-radius: 5px;
+            padding: 15px;
+            font-size: 12px;
+            pointer-events: auto;
+            max-width: 300px;
+            display: none;
+            z-index: 999;
+        }
+
+        #adminPanel h3 {
+            margin: 0 0 10px 0;
+            color: #ffff00;
+        }
+
+        #adminPanel button {
+            display: block;
+            width: 100%;
+            margin: 5px 0;
+            padding: 8px;
+            background: #00ff00;
+            color: black;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        #adminPanel button:hover {
+            background: #ffff00;
+        }
+
+        #adminPanel input {
+            width: 80%;
+            padding: 5px;
+            margin: 5px 0;
+            background: #222;
+            color: #0f0;
+            border: 1px solid #00ff00;
+            border-radius: 3px;
+        }
+
+        #toggleAdmin {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: #00ff00;
+            color: black;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+            z-index: 1001;
+            display: none;
+        }
+
+        #toggleAdmin:hover {
+            background: #ffff00;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 </head>
 <body>
+
+    <button id="toggleAdmin">ADMIN</button>
+    <div id="adminPanel">
+        <h3>⚙️ PANEL ADMIN</h3>
+        <button onclick="admin.addEnemies(5)">+ 5 Enemigos</button>
+        <button onclick="admin.removeAllEnemies()">- Todos Enemigos</button>
+        <button onclick="admin.setPlayerHealth(100)">Salud Max</button>
+        <button onclick="admin.setPlayerAmmo(999)">Munición ∞</button>
+        <button onclick="admin.skipMission()">Saltar Misión</button>
+        <button onclick="admin.toggleGodMode()">GodMode: <span id="godModeStatus">OFF</span></button>
+        <label>Enemigos en pantalla: <span id="enemyCount">0</span></label><br>
+        <label>Velocidad: <input type="range" id="speedSlider" min="0.1" max="1" step="0.1" value="0.25" onchange="admin.setPlayerSpeed(this.value)"></label>
+    </div>
 
     <div id="crosshair"></div>
     <div id="healthBar">
@@ -135,12 +216,13 @@
     <div id="ui">
         <div>💀 Bajas: <span id="score">0</span></div>
         <div>🔫 Munición: <span id="ammo">30</span></div>
+        <div id="weaponInfo">Rifle Militar</div>
     </div>
     <div id="instrucciones">
         <b>CONTROLES:</b><br>
         WASD: Mover | MOUSE: Apuntar<br>
         Click Izquierdo: Disparar | ESPACIO: Saltar<br>
-        R: Recargar | ESC: Soltar cursor
+        R: Recargar | ESC: Soltar cursor | F12: Admin
     </div>
     <div id="mision">
         <b>MISIÓN ACTUAL:</b><br>
@@ -156,6 +238,52 @@
             document.body.innerHTML = '<p style="color:white;padding:20px;">No se cargó Three.js. Comprueba tu conexión o el CDN.</p>';
             throw new Error('Three.js no cargado');
         }
+
+        // --- SISTEMA ADMIN ---
+        const admin = {
+            godMode: false,
+            playerSpeed: 0.25,
+            toggleGodMode() {
+                this.godMode = !this.godMode;
+                document.getElementById('godModeStatus').innerText = this.godMode ? 'ON' : 'OFF';
+            },
+            addEnemies(count) {
+                for (let i = 0; i < count; i++) spawnEnemy();
+            },
+            removeAllEnemies() {
+                enemies.forEach(e => scene.remove(e.mesh));
+                enemies.length = 0;
+            },
+            setPlayerHealth(health) {
+                player.health = health;
+                actualizarBarraSalud();
+            },
+            setPlayerAmmo(ammo) {
+                player.ammo = ammo;
+                document.getElementById('ammo').innerText = player.ammo;
+            },
+            skipMission() {
+                if (misionActual < misiones.length - 1) {
+                    cargarSiguienteMision();
+                }
+            },
+            setPlayerSpeed(speed) {
+                this.playerSpeed = parseFloat(speed);
+            }
+        };
+
+        document.getElementById('toggleAdmin').addEventListener('click', () => {
+            const panel = document.getElementById('adminPanel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+                e.preventDefault();
+                document.getElementById('toggleAdmin').style.display = 
+                    document.getElementById('toggleAdmin').style.display === 'none' ? 'block' : 'none';
+            }
+        });
 
         // --- CONFIGURACIÓN DEL MUNDO ---
         const scene = new THREE.Scene();
@@ -191,6 +319,37 @@
         floor.receiveShadow = true;
         scene.add(floor);
 
+        // --- CREAR ARMA DEL JUGADOR ---
+        function crearArmaJugador() {
+            const armaGroup = new THREE.Group();
+
+            // Cañón del rifle
+            const canoGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.8, 8);
+            const canoMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.7 });
+            const cano = new THREE.Mesh(canoGeo, canoMat);
+            cano.position.z = -0.4;
+            armaGroup.add(cano);
+
+            // Culata del rifle
+            const culetaGeo = new THREE.BoxGeometry(0.15, 0.15, 0.4);
+            const culetaMat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+            const culeta = new THREE.Mesh(culetaGeo, culetaMat);
+            culeta.position.z = 0.15;
+            armaGroup.add(culeta);
+
+            // Mira
+            const miraGeo = new THREE.BoxGeometry(0.05, 0.15, 0.1);
+            const miraMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            const mira = new THREE.Mesh(miraGeo, miraMat);
+            mira.position.set(0, 0.15, -0.2);
+            armaGroup.add(mira);
+
+            armaGroup.position.set(0.3, -0.2, -0.8);
+            armaGroup.scale.set(0.8, 0.8, 0.8);
+            
+            return armaGroup;
+        }
+
         // --- SISTEMA DE JUGADOR ---
         let player = {
             pos: { x: 0, z: 5 },
@@ -201,6 +360,9 @@
             maxAmmo: 30,
             score: 0
         };
+
+        const armaJugador = crearArmaJugador();
+        camera.add(armaJugador);
 
         let keys = {};
         let isJumping = false;
@@ -255,30 +417,39 @@
             document.getElementById('ammo').innerText = player.ammo;
         }
 
-        // --- CREAR PERSONAJE 3D (Enemigo) ---
+        // --- CREAR SOLDADO ENEMIGO (MILITAR) ---
         function crearPersonaje(posX, posZ) {
             const grupo = new THREE.Group();
 
-            // Cuerpo
+            // Uniforme: Cuerpo (chaleco táctico)
             const bodyGeo = new THREE.CapsuleGeometry(0.6, 1.8, 4, 8);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x990000 });
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2d5016 }); // Verde militar
             const body = new THREE.Mesh(bodyGeo, bodyMat);
             body.castShadow = true;
             body.receiveShadow = true;
             grupo.add(body);
 
-            // Cabeza
-            const headGeo = new THREE.SphereGeometry(0.5, 8, 8);
-            const headMat = new THREE.MeshStandardMaterial({ color: 0xcc6666 });
-            const head = new THREE.Mesh(headGeo, headMat);
-            head.position.y = 1.3;
-            head.castShadow = true;
-            head.receiveShadow = true;
-            grupo.add(head);
+            // Casco militar
+            const helmetGeo = new THREE.SphereGeometry(0.55, 8, 8);
+            const helmetMat = new THREE.MeshStandardMaterial({ color: 0x1a3a0a }); // Verde oscuro
+            const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+            helmet.position.y = 1.4;
+            helmet.castShadow = true;
+            helmet.receiveShadow = true;
+            grupo.add(helmet);
 
-            // Brazos
+            // Cara
+            const faceGeo = new THREE.SphereGeometry(0.35, 8, 8);
+            const faceMat = new THREE.MeshStandardMaterial({ color: 0xd4a574 }); // Tono piel
+            const face = new THREE.Mesh(faceGeo, faceMat);
+            face.position.set(0, 1.3, 0.3);
+            face.castShadow = true;
+            face.receiveShadow = true;
+            grupo.add(face);
+
+            // Brazos (con uniforme)
             const armGeo = new THREE.CapsuleGeometry(0.3, 1.2, 4, 6);
-            const armMat = new THREE.MeshStandardMaterial({ color: 0xaa4444 });
+            const armMat = new THREE.MeshStandardMaterial({ color: 0x2d5016 }); // Verde militar
 
             const armLeft = new THREE.Mesh(armGeo, armMat);
             armLeft.position.set(-0.8, 0.5, 0);
@@ -290,9 +461,9 @@
             armRight.castShadow = true;
             grupo.add(armRight);
 
-            // Piernas
+            // Piernas (pantalón militar)
             const legGeo = new THREE.CapsuleGeometry(0.25, 1.2, 4, 6);
-            const legMat = new THREE.MeshStandardMaterial({ color: 0x330000 });
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x1a3a0a }); // Verde oscuro
 
             const legLeft = new THREE.Mesh(legGeo, legMat);
             legLeft.position.set(-0.4, -1, 0);
@@ -303,6 +474,15 @@
             legRight.position.set(0.4, -1, 0);
             legRight.castShadow = true;
             grupo.add(legRight);
+
+            // Rifle del enemigo
+            const rifleGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.7, 8);
+            const rifleMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6 });
+            const rifle = new THREE.Mesh(rifleGeo, rifleMat);
+            rifle.position.set(0.6, 0.3, -0.3);
+            rifle.rotation.z = Math.PI / 4;
+            rifle.castShadow = true;
+            grupo.add(rifle);
 
             grupo.position.set(posX, 0, posZ);
             grupo.castShadow = true;
@@ -315,15 +495,16 @@
                 armRight: armRight,
                 legLeft: legLeft,
                 legRight: legRight,
+                rifle: rifle,
                 walkCycle: 0
             };
         }
 
         // --- SISTEMA DE MISIONES ---
         const misiones = [
-            { nombre: "Entrenamiento Básico", objetivo: 10, descripcion: "Elimina 10 enemigos" },
-            { nombre: "Combate Intenso", objetivo: 20, descripcion: "Elimina 20 enemigos" },
-            { nombre: "Masacre Total", objetivo: 50, descripcion: "Elimina 50 enemigos" }
+            { nombre: "Reconocimiento", objetivo: 10, descripcion: "Elimina 10 soldados enemigos" },
+            { nombre: "Asalto Táctico", objetivo: 20, descripcion: "Elimina 20 soldados enemigos" },
+            { nombre: "Operación Especial", objetivo: 50, descripcion: "Elimina 50 soldados enemigos" }
         ];
 
         let misionActual = 0;
@@ -347,7 +528,7 @@
             document.getElementById('mensajeMision').innerHTML = `
                 ✓ ¡MISIÓN COMPLETADA!<br><br>
                 ${mision.nombre}<br>
-                Enemigos eliminados: ${enemigosEliminados}
+                Soldados eliminados: ${enemigosEliminados}
             `;
             document.getElementById('misionCompleta').style.display = 'block';
         }
@@ -367,7 +548,7 @@
             } else {
                 document.getElementById('mensajeMision').innerHTML = `
                     ¡TODAS LAS MISIONES COMPLETADAS!<br><br>
-                    Eres un verdadero soldado.
+                    Eres un verdadero soldado de élite.
                 `;
                 document.getElementById('misionCompleta').querySelector('button').style.display = 'none';
             }
@@ -392,6 +573,8 @@
 
         // --- FUNCIONES DE DAÑO ---
         function dañarJugador(cantidad) {
+            if (admin.godMode) return;
+            
             player.health -= cantidad;
             actualizarBarraSalud();
 
@@ -436,8 +619,11 @@
         function animate() {
             requestAnimationFrame(animate);
 
+            // Actualizar contador de enemigos en admin
+            document.getElementById('enemyCount').innerText = enemies.length;
+
             // Movimiento del jugador
-            const speed = 0.25;
+            const speed = admin.playerSpeed;
             const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rot.y).normalize();
             const side = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), player.rot.y).normalize();
 
@@ -500,6 +686,9 @@
                 e.armRight.rotation.z = -Math.sin(e.walkCycle) * 0.5;
                 e.legLeft.rotation.x = Math.sin(e.walkCycle) * 0.3;
                 e.legRight.rotation.x = -Math.sin(e.walkCycle) * 0.3;
+
+                // Rotación del rifle
+                e.rifle.rotation.x = Math.sin(e.walkCycle) * 0.2;
 
                 // Enemigo cerca: causar daño
                 const distancia = e.mesh.position.distanceTo(camera.position);
