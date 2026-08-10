@@ -319,34 +319,79 @@
         floor.receiveShadow = true;
         scene.add(floor);
 
-        // --- CREAR ARMA DEL JUGADOR ---
+        // --- CREAR ARMA DEL JUGADOR (RIFLE 3D MEJORADO) ---
         function crearArmaJugador() {
             const armaGroup = new THREE.Group();
 
-            // Cañón del rifle
-            const canoGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.8, 8);
-            const canoMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.7 });
-            const cano = new THREE.Mesh(canoGeo, canoMat);
-            cano.position.z = -0.4;
-            armaGroup.add(cano);
+            // Cañón principal
+            const barrelGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.0, 12);
+            const barrelMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.3 });
+            const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+            barrel.rotation.x = Math.PI / 2;
+            barrel.position.set(0, 0, -0.5);
+            barrel.castShadow = true;
+            armaGroup.add(barrel);
 
-            // Culata del rifle
-            const culetaGeo = new THREE.BoxGeometry(0.15, 0.15, 0.4);
-            const culetaMat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
-            const culeta = new THREE.Mesh(culetaGeo, culetaMat);
-            culeta.position.z = 0.15;
-            armaGroup.add(culeta);
+            // Cuerpo del rifle
+            const bodyGeo = new THREE.BoxGeometry(0.18, 0.12, 0.7);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, metalness: 0.6, roughness: 0.4 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.set(0, -0.05, -0.05);
+            body.castShadow = true;
+            armaGroup.add(body);
 
-            // Mira
-            const miraGeo = new THREE.BoxGeometry(0.05, 0.15, 0.1);
-            const miraMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-            const mira = new THREE.Mesh(miraGeo, miraMat);
-            mira.position.set(0, 0.15, -0.2);
-            armaGroup.add(mira);
+            // Culata
+            const stockGeo = new THREE.BoxGeometry(0.24, 0.18, 0.45);
+            const stockMat = new THREE.MeshStandardMaterial({ color: 0x4b2f1c, metalness: 0.1, roughness: 0.7 });
+            const stock = new THREE.Mesh(stockGeo, stockMat);
+            stock.position.set(0.35, -0.02, 0.15);
+            stock.rotation.y = Math.PI / 12;
+            stock.castShadow = true;
+            armaGroup.add(stock);
+
+            // Grip
+            const gripGeo = new THREE.BoxGeometry(0.06, 0.12, 0.12);
+            const grip = new THREE.Mesh(gripGeo, stockMat);
+            grip.position.set(0, -0.18, -0.1);
+            grip.rotation.x = -Math.PI / 10;
+            grip.castShadow = true;
+            armaGroup.add(grip);
+
+            // Cargador
+            const magGeo = new THREE.BoxGeometry(0.09, 0.2, 0.06);
+            const magMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.5, roughness: 0.5 });
+            const mag = new THREE.Mesh(magGeo, magMat);
+            mag.position.set(-0.05, -0.12, -0.15);
+            mag.castShadow = true;
+            armaGroup.add(mag);
+
+            // Mira telescópica (scope)
+            const scopeGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
+            const scopeMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.2 });
+            const scope = new THREE.Mesh(scopeGeo, scopeMat);
+            scope.rotation.x = Math.PI / 2;
+            scope.position.set(0, 0.08, -0.25);
+            scope.castShadow = true;
+            armaGroup.add(scope);
+
+            // Muzzle (destello) - un pequeño sprite/luz
+            const flashGeo = new THREE.SphereGeometry(0.06, 8, 8);
+            const flashMat = new THREE.MeshBasicMaterial({ color: 0xffcc66 });
+            const muzzle = new THREE.Mesh(flashGeo, flashMat);
+            muzzle.position.set(0, 0, -1.05);
+            muzzle.visible = false;
+            armaGroup.add(muzzle);
+
+            const muzzleLight = new THREE.PointLight(0xffcc88, 1.5, 6);
+            muzzleLight.position.set(0, 0, -1.05);
+            muzzleLight.visible = false;
+            armaGroup.add(muzzleLight);
+
+            armaGroup.userData = { muzzle: muzzle, muzzleLight: muzzleLight };
 
             armaGroup.position.set(0.3, -0.2, -0.8);
-            armaGroup.scale.set(0.8, 0.8, 0.8);
-            
+            armaGroup.scale.set(0.9, 0.9, 0.9);
+
             return armaGroup;
         }
 
@@ -360,6 +405,8 @@
             maxAmmo: 30,
             score: 0
         };
+
+        let weaponRecoil = 0; // control de retroceso
 
         const armaJugador = crearArmaJugador();
         camera.add(armaJugador);
@@ -397,19 +444,30 @@
             if (document.pointerLockElement !== document.body || e.button !== 0) return;
             if (player.ammo <= 0) return;
 
-            const bulletGeo = new THREE.SphereGeometry(0.1, 6, 6);
+            const bulletGeo = new THREE.SphereGeometry(0.06, 6, 6);
             const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
             const bullet = new THREE.Mesh(bulletGeo, bulletMat);
 
             const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
             bullet.position.copy(camera.position).add(dir.clone().multiplyScalar(2));
 
-            bullet.userData = { dir: dir.clone(), speed: 2, life: 300, damage: 25 };
+            bullet.userData = { dir: dir.clone(), speed: 2.8, life: 300, damage: 25 };
             bullets.push(bullet);
             scene.add(bullet);
 
             player.ammo--;
             document.getElementById('ammo').innerText = player.ammo;
+
+            // Retroceso y destello
+            weaponRecoil = 0.14;
+            if (armaJugador && armaJugador.userData && armaJugador.userData.muzzle) {
+                armaJugador.userData.muzzle.visible = true;
+                armaJugador.userData.muzzleLight.visible = true;
+                setTimeout(() => {
+                    armaJugador.userData.muzzle.visible = false;
+                    armaJugador.userData.muzzleLight.visible = false;
+                }, 70);
+            }
         });
 
         function recargar() {
@@ -696,6 +754,17 @@
                     dañarJugador(0.5);
                 }
             });
+
+            // Aplicar retroceso del arma (suavizado)
+            if (weaponRecoil > 0.001) {
+                armaJugador.position.z = -0.8 - weaponRecoil;
+                armaJugador.rotation.x = -weaponRecoil * 0.5;
+                weaponRecoil *= 0.82;
+            } else {
+                armaJugador.position.z = -0.8;
+                armaJugador.rotation.x = 0;
+                weaponRecoil = 0;
+            }
 
             renderer.render(scene, camera);
         }
