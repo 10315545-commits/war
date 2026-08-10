@@ -10,7 +10,7 @@
         #instrucciones { position: absolute; top: 20px; left: 20px; color: #aaa; font-size: 14px; pointer-events: none; }
     </style>
     <!-- Importamos la librería Three.js desde CDN -->
-    <script src="https://cloudflare.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
 </head>
 <body>
 
@@ -19,6 +19,11 @@
     <div id="instrucciones">Mover: WASD | Apuntar: Movimiento Mouse | Disparar: Clic Izquierdo</div>
 
     <script>
+        if (typeof THREE === 'undefined') {
+            document.body.innerHTML = '<p style="color:white;padding:20px;">No se cargó Three.js. Comprueba tu conexión o el CDN.</p>';
+            throw new Error('Three.js no cargado');
+        }
+
         // --- 1. CONFIGURACIÓN DEL MUNDO ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x223344); // Cielo oscuro de guerra
@@ -51,7 +56,9 @@
 
         // Bloqueo de cursor para control tipo FPS
         window.addEventListener('click', () => {
-            document.body.requestPointerLock();
+            if (document.pointerLockElement !== document.body) {
+                document.body.requestPointerLock();
+            }
         });
 
         window.addEventListener('mousemove', (e) => {
@@ -77,12 +84,12 @@
             const bulletGeo = new THREE.SphereGeometry(0.15, 8, 8);
             const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 }); // Bala brillante
             const bullet = new THREE.Mesh(bulletGeo, bulletMat);
-            
-            bullet.position.copy(camera.position);
 
-            // Calcular dirección del disparo basándose en la vista de la cámara
-            const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-            bullet.userData = { dir: dir, speed: 1.5, life: 100 };
+            // Posicionar la bala un poco delante de la cámara para que no colisione con el jugador
+            const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+            bullet.position.copy(camera.position).add(dir.clone().multiplyScalar(1));
+
+            bullet.userData = { dir: dir.clone(), speed: 1.8, life: 200 };
 
             bullets.push(bullet);
             scene.add(bullet);
